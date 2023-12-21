@@ -1,0 +1,344 @@
+Installing Jenkins
+--------------------------
+$ sudo su -
+$ yum install git
+$ sudo wget -O /etc/yum.repos.d/jenkins.repo \
+    https://pkg.jenkins.io/redhat-stable/jenkins.repo
+$ sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+$ sudo dnf upgrade
+$ sudo yum install java-17-amazon-corretto-devel
+$ yum install jenkins
+$ service jenkins status
+$ service jenkins start
+
+Add inbounds rule in instance with 8080
+copy the path and find the password in mobaXTerm
+$ cat /var/lib/jenkins/secrets/initialAdminPassword
+Jenkins is installed
+
+
+Maven Installation
+-------------------------
+$ sudo su -
+$ cd /opt
+$ wget maven_link_tar.gz
+$ tar -xvzf maven_file
+$ ll -a
+$ mv apache-maven-3.9.6 maven
+$ cd maven
+$ cd bin
+$ ll -a
+$ ./mvn -v
+$ cd ~
+$ ll -a
+$ vi .bash_profile
+
+Duplicate tab 
+$ find / -name jvm
+$ cd /usr/lib/jvm
+$ cd java-17-amazon-corretto.x86_64
+$ pwd --- copy the path
+$ /usr/lib/jvm/java-17-amazon-corretto.x86_64
+
+Inside bash_profile we need to insert
+*M2_HOME=/opt/maven
+ M2=/opt/maven/bin
+ JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto.x86_64
+ PATH=$PATH:$HOME/bin:$M2_HOME:$M2:$JAVA_HOME
+ export PATH
+
+$ echo .bash_profile
+$ echo $PATH
+$ source .bash_profile
+$ mvn -v
+
+
+Integrating Maven into Jenkins
+------------------------------------
+Dashboard - Manage Jenkins - Plugins - available plugins - search maven - check maven integration and install
+Install git and github also in available plugins
+
+Manage Jenkins - Tools - 
+ADD JDK 
+JDK Name(java_17) - JAVA_HOME(/usr/lib/jvm/java-17-amazon-corretto.x86_64)
+ADD Maven 
+Maven(Maven_3) - MAVEN_HOME(/opt/maven)
+Apply and Save
+
+Dashboard - New_Items - ProjectName(DemoM) and choose Maven_Project - In source management add git and Repositary URL and add Repository Browser(githubweb) and URL as (repository url without .git)
+Build - Root POM - Maven/pom.xml
+	Goals and options - clean install
+Apply - Save - Bulid Now
+
+
+Tomcat Installation
+-------------------------------
+$ sudo su -
+$ sudo yum install java-17-amazon-corretto-devel
+$ cd /opt
+$ wget tomcat_tar.gz
+$ tar -xvfz tomcat_file
+$ mv tomcat_file tomcat
+$ ./startup.sh
+$ ./shutdown.sh
+$ cd ~
+$ ln -s /opt/tomcat/bin/startup.sh /usr/local/bin/tomcatup
+$ ln -s /opt/tomcat/bin/shutdown.sh /usr/local/bin/tomcatdown
+$ cd ~ - tomcatup
+$ find / -name context.xml
+make comment in value of manager and host manager
+$ cd ~ - cd /opt - cd tomcat - cd conf
+$ vi tomcat-users.xml
+<role rolename="manager-gui"/>
+<role rolename="manager-script"/>
+<role rolename="manager-jmx"/>
+<role rolename="manager-status"/>
+ <user username="admin" password="admin" roles="manager-gui,manager-		script,manager-jmx,manager-status"/>
+ <user username="deploy" password="deploy" roles="manager-script"/>
+ <user username="virus" password="virus" roles="manager-gui"/>
+
+Create Github Repository and Integrate Eclipse(Maven Project) with Github
+
+Integration of Tomcat with Jenkins
+----------------------------------------
+In Jenkins 
+Dashboard - Manage Jenkins - Available Plugins -  Deploy to Container and install
+Credentials - username-admin and password- admin
+ID- tomcat_id
+Description - tomcat_id and create
+
+Dashboard - New Items(Tomcat) - Maven project - OK
+ource management add git and Repositary URL and add Repository Browser(githubweb) and URL as (repository url without .git)
+Goto Post Build Actions - add Post Build Action - Deploy war/ear to a container
+WAR/EAR - **/*.war
+container - Tomcat_9.XRemote
+credentials - admin/*****(tomcat_id)
+url - tomcat url upto http://IP_Address:8080
+Apply - Save - Build Now
+
+
+DOCKER Installation
+----------------------------------
+$ sudo su -
+$ sudo yum install java-17-amazon-corretto-devel
+$ yum install docker -y
+$ docker --version
+$ service docker status
+$ service docker start
+$ docker images
+$ docker ps -a
+$ docker pull tomcat
+$ docker images
+$ docker run -d --name tomcat_container -p 8081:8080 tomcat
+$ docker ps -a
+
+In Browser Public IP_Address:8081 - HTTP Status 404 – Not Found 
+Search in browser HTTP Status 404 – Not Found tomcat container error - goto first website forums.docker and run the three commands
+
+$ docker exec -it tomcat_container /bin/bash
+$ mv webapps webapps2
+$ mv webapps.dist/ webapps
+$ exit
+
+Reload Browser and tomcat_container we run...
+
+
+Integrating Docker with Jenkins
+-----------------------------------
+$ vi Dockerfile
+
+FROM tomcat
+RUN cp -R /usr/local/tomcat/webapps.dist/* /usr/local/tomcat/webapps
+
+$ docker build -t mytomcat1 .
+$ docker run -d --name mycontainer -p 8084:8080 mytomcat1
+$ docker ps -a
+$ docker stop mycontainer
+$ cd ~
+$ cat /etc/passwd
+$ cat /etc/group
+$ useradd dockeradmin
+$ passwd dockeradmin
+Enter the password and conform the password
+
+$ id dockeradmin
+$ usermod -aG docker dockeradmin
+$ id dockeradmin
+$ ll /etc/ssh/
+$ vi /etc/ssh/sshd_config
+PasswordAuthentication Yes
+
+$ service sshd reload
+
+Create Github Repository and Integrate Eclipse(Maven Project) with github
+
+In Jenkins
+Manage Jenkins - Plugins - available plugins - Publish Over SSH and install
+System - Publish Over SSH - add "SSH Server"
+	Name - docker
+	Hostname - private ip
+Click Advanced - Check box 'use password authentication' - Give Password
+Apply - Save
+
+
+$ cd ~
+$ cd /opt - ls
+$ mkdir docker - ll
+$ chown -R dockeradmin:dockeradmin docker - ll
+$ cd ~ - ll
+$ mv Dockerfile /opt/docker/ - ll
+$ cd /opt/docker - ll
+$ chown -R dockeradmin:dockeradmin Dockerfile - ll
+$ vi Dockerfile
+COPY ./*.war /usr/local/tomcat/webapps
+
+$ docker image
+$ docker ps
+Dashboard - New Item - MavenProject -OK
+Browser(githubweb) and URL as (repository url without .git)
+Goto Post Build Actions - add Post Build Action - send build artifacts over ssh
+	Name - dockerhost
+Advanced - check workspace for war file path
+	source file - docker/target/*.war
+	Remote directory - //opt//docker
+	Exec Command - cd /opt/docker
+			docker build -t img2 .
+			docker stop imgcont2
+			docker rm imgcont2
+			docker run -d --name imgcont2 8085:8080 img2
+Apply - Save - Build Now
+
+Open Browser and run IP_Address:8085 and IP_Address:8085/docker
+
+$ 
+
+GITSHELL COMMANDS
+------------------------------
+Certainly! Here's a brief explanation, syntax, and an example for each of the Git commands you've listed:
+
+git:
+
+Explanation: The base command for Git.
+Syntax: git [command]
+Example: git status
+config:
+
+Explanation: Used to set configuration options for your Git installation.
+Syntax: git config [options]
+Example: git config --global user.name "Your Name"
+help:
+
+Explanation: Displays help information for Git commands.
+Syntax: git help [command]
+Example: git help commit
+init:
+
+Explanation: Initializes a new Git repository.
+Syntax: git init [project-name]
+Example: git init my_project
+clone:
+
+Explanation: Creates a copy of a remote repository.
+Syntax: git clone [repository-url] [directory]
+Example: git clone https://github.com/example/repo.git
+add:
+
+Explanation: Adds changes in the working directory to the staging area.
+Syntax: git add [file(s)]
+Example: git add file.txt
+status:
+
+Explanation: Shows the status of changes as untracked, modified, or staged.
+Syntax: git status
+Example: git status
+diff:
+
+Explanation: Shows changes between commits, commit and working tree, etc.
+Syntax: git diff
+Example: git diff file.txt
+commit:
+
+Explanation: Records changes to the repository.
+Syntax: git commit -m "Commit message"
+Example: git commit -m "Initial commit"
+restore:
+
+Explanation: Discards changes in the working directory.
+Syntax: git restore [file(s)]
+Example: git restore file.txt
+reset:
+
+Explanation: Resets the current HEAD to the specified state.
+Syntax: git reset [options] [commit]
+Example: git reset --hard HEAD~1
+rm:
+
+Explanation: Removes files from the working tree and from the index.
+Syntax: git rm [file(s)]
+Example: git rm file.txt
+mv:
+
+Explanation: Moves or renames files.
+Syntax: git mv [source] [destination]
+Example: git mv oldfile.txt newfile.txt
+branch:
+
+Explanation: Lists, creates, or deletes branches.
+Syntax: git branch [branch-name]
+Example: git branch feature-branch
+checkout:
+
+Explanation: Switches branches or restores working tree files.
+Syntax: git checkout [branch-name]
+Example: git checkout feature-branch
+switch:
+
+Explanation: Switches branches.
+Syntax: git switch [branch-name]
+Example: git switch main
+merge:
+
+Explanation: Joins two or more development histories together.
+Syntax: git merge [branch-name]
+Example: git merge feature-branch
+log:
+
+Explanation: Shows the commit logs.
+Syntax: git log
+Example: git log
+stash:
+
+Explanation: Stashes changes in a dirty working directory.
+Syntax: git stash [save]
+Example: git stash save "Work in progress"
+push:
+
+Explanation: Pushes changes to a remote repository.
+Syntax: git push [remote] [branch]
+Example: git push origin main
+pull:
+
+Explanation: Fetches changes from a remote repository and merges them.
+Syntax: git pull [remote] [branch]
+Example: git pull origin main
+remote:
+
+Explanation: Manages remote repositories.
+Syntax: git remote [options] [name] [url]
+Example: git remote add origin https://github.com/example/repo.git
+show:
+
+Explanation: Shows information about a commit, tag, or tree.
+Syntax: git show [commit]
+Example: git show abc123
+rebase:
+
+Explanation: Reapplies commits on top of another base commit.
+Syntax: git rebase [base]
+Example: git rebase main
+revert:
+
+Explanation: Reverts a commit.
+Syntax: git revert [commit]
+Example: git revert abc123
+These examples provide a basic understanding of how each Git command works. For more detailed information and
